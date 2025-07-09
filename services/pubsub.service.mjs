@@ -11,24 +11,29 @@ await redis.connect();
 
 export class PubSubService {
   static async publish(channel, data) {
-    const { repo, pr } = data;
-    let subject = `New PR on ${repo.full_name}`;
+    try {
+      const { repo, pr } = data;
+      let subject = `New PR on ${repo.full_name}`;
 
-    if (data.action === 'closed') {
-      subject = `PR #${pr.number} closed on ${repo.full_name}`;
+      if (data.action === 'closed') {
+        subject = `PR #${pr.number} closed on ${repo.full_name}`;
+      }
+
+      const html = `
+        <h3>${data.pr.title}</h3>
+        <p>Author: ${pr.user.login}</p>
+        <p><a href="${pr.html_url}">View Pull Request</a></p>
+      `;
+
+      if (!channel || !data) {
+        throw new Error('Channel and data are required to publish a message');
+      }
+
+      await EmailService.sendEmail(toEmail, subject, html);
+      await redis.publish(channel, JSON.stringify(data));
+    } catch (error) {
+      console.error('Error publishing message:', error);
+      throw new Error('Failed to publish message');
     }
-
-    const html = `
-      <h3>${data.pr.title}</h3>
-      <p>Author: ${pr.user.login}</p>
-      <p><a href="${pr.html_url}">View Pull Request</a></p>
-    `;
-
-    if (!channel || !data) {
-      throw new Error('Channel and data are required to publish a message');
-    }
-
-    await EmailService.sendEmail(toEmail, subject, html);
-    await redis.publish(channel, JSON.stringify(data));
   }
 }
